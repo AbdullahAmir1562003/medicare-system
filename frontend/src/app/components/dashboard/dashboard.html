@@ -1,0 +1,201 @@
+<div class="container py-4">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold mb-1">Dashboard Overview</h2>
+      <p class="text-muted mb-0">
+        Welcome back, <span class="text-primary fw-semibold">{{ user?.name }}</span>
+        (Role: <span class="text-uppercase fw-bold">{{ user?.role }}</span>)
+      </p>
+    </div>
+    <button *ngIf="user?.role?.toLowerCase() === 'patient'" class="btn btn-primary shadow-sm" (click)="showBookModal = true">
+      <i class="bi bi-plus-circle me-1"></i> Book Appointment
+    </button>
+  </div>
+
+  <!-- Metric Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm rounded-4 bg-primary text-white p-3">
+        <small class="text-white-50 fw-semibold">Total Appointments</small>
+        <h2 class="fw-bold my-1">{{ totalAppointmentsCount }}</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm rounded-4 bg-success text-white p-3">
+        <small class="text-white-50 fw-semibold">Completed</small>
+        <h2 class="fw-bold my-1">{{ completedCount }}</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm rounded-4 bg-warning text-dark p-3">
+        <small class="text-dark-50 fw-semibold">Pending</small>
+        <h2 class="fw-bold my-1">{{ pendingCount }}</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm rounded-4 bg-info text-white p-3">
+        <small class="text-white-50 fw-semibold">Unique Patients</small>
+        <h2 class="fw-bold my-1">{{ totalPatientsCount }}</h2>
+      </div>
+    </div>
+  </div>
+
+  <!-- Appointments Queue -->
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+      <h5 class="fw-bold mb-3"><i class="bi bi-list-task me-2 text-primary"></i>Appointments Queue</h5>
+      
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Patient</th>
+              <th>Doctor</th>
+              <th>Date & Time</th>
+              <th>Symptoms</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="isLoading">
+              <td colspan="6" class="text-center py-4 text-muted">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div> Loading appointments...
+              </td>
+            </tr>
+
+            <tr *ngIf="!isLoading && appointments.length === 0">
+              <td colspan="6" class="text-center py-4 text-muted">
+                No appointments found.
+              </td>
+            </tr>
+
+            <tr *ngFor="let apt of appointments">
+              <td class="fw-semibold">{{ getPatientName(apt) }}</td>
+              <td>Dr. {{ getDoctorName(apt) }}</td>
+              <td>
+                <div>{{ apt.date }}</div>
+                <small class="text-muted">{{ apt.timeSlot }}</small>
+              </td>
+              <td>{{ apt.symptoms }}</td>
+              <td>
+                <span class="badge"
+                  [ngClass]="{
+                    'bg-warning text-dark': apt.status === 'pending',
+                    'bg-success': apt.status === 'confirmed' || apt.status === 'completed',
+                    'bg-danger': apt.status === 'cancelled'
+                  }">
+                  {{ apt.status | uppercase }}
+                </span>
+              </td>
+              <td class="text-end">
+                <!-- Patient Actions -->
+                <button 
+                  *ngIf="apt.status === 'pending' && user?.role?.toLowerCase() === 'patient'" 
+                  class="btn btn-outline-danger btn-sm"
+                  (click)="updateStatus(apt._id, 'cancelled')">
+                  Cancel
+                </button>
+
+                <!-- Doctor Actions -->
+                <div *ngIf="user?.role?.toLowerCase() === 'doctor' && apt.status === 'pending'" class="btn-group btn-group-sm">
+                  <button class="btn btn-outline-success" (click)="updateStatus(apt._id, 'confirmed')">Confirm</button>
+                  <button class="btn btn-outline-danger" (click)="updateStatus(apt._id, 'cancelled')">Cancel</button>
+                </div>
+
+                <button 
+                  *ngIf="user?.role?.toLowerCase() === 'doctor' && apt.status === 'confirmed'" 
+                  class="btn btn-success btn-sm shadow-sm"
+                  (click)="openPrescriptionModal(apt)">
+                  <i class="bi bi-file-earmark-medical me-1"></i> Issue Rx
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Issue Prescription -->
+<div *ngIf="showRxModal" class="modal-backdrop-custom">
+  <div class="modal-card shadow-lg rounded-4 bg-white p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0 text-success"><i class="bi bi-prescription2 me-2"></i>Issue Prescription</h5>
+      <button type="button" class="btn-close" (click)="closePrescriptionModal()"></button>
+    </div>
+    
+    <form (ngSubmit)="submitPrescription()">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Patient</label>
+        <input type="text" class="form-control bg-light" [value]="getPatientName(selectedAppointment)" readonly />
+      </div>
+
+      <label class="form-label small fw-semibold">Medicines</label>
+      <div *ngFor="let med of prescriptionData.medicines; let i = index" class="row g-2 mb-2">
+        <div class="col-5">
+          <input type="text" class="form-control form-control-sm" placeholder="Medicine Name" [(ngModel)]="med.name" [name]="'medName' + i" required />
+        </div>
+        <div class="col-4">
+          <input type="text" class="form-control form-control-sm" placeholder="Dosage (e.g. 500mg)" [(ngModel)]="med.dosage" [name]="'medDose' + i" required />
+        </div>
+        <div class="col-3">
+          <input type="text" class="form-control form-control-sm" placeholder="Frequency" [(ngModel)]="med.frequency" [name]="'medFreq' + i" required />
+        </div>
+      </div>
+      <button type="button" class="btn btn-outline-success btn-sm mb-3" (click)="addMedicineRow()">+ Add Medicine</button>
+
+      <div class="mb-4">
+        <label class="form-label small fw-semibold">Instructions / Advice</label>
+        <textarea class="form-control bg-light" rows="2" placeholder="Take after meals..." [(ngModel)]="prescriptionData.instructions" name="instructions"></textarea>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary" (click)="closePrescriptionModal()">Cancel</button>
+        <button type="submit" class="btn btn-success">Save & Complete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Book Appointment -->
+<div *ngIf="showBookModal" class="modal-backdrop-custom">
+  <div class="modal-card shadow-lg rounded-4 bg-white p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0 text-primary">Book New Appointment</h5>
+      <button type="button" class="btn-close" (click)="showBookModal = false"></button>
+    </div>
+    
+    <form (ngSubmit)="submitBooking()">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Select Doctor</label>
+        <select class="form-select bg-light" [(ngModel)]="newAppointment.doctorId" name="doctorId" required>
+          <option *ngFor="let doc of doctors" [value]="doc._id">Dr. {{ doc.name }}</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Date</label>
+        <input type="date" class="form-control bg-light" [(ngModel)]="newAppointment.date" name="date" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Time Slot</label>
+        <select class="form-select bg-light" [(ngModel)]="newAppointment.timeSlot" name="timeSlot">
+          <option>09:00 AM - 10:00 AM</option>
+          <option>10:30 AM - 11:30 AM</option>
+          <option>02:00 PM - 03:00 PM</option>
+          <option>04:00 PM - 05:00 PM</option>
+        </select>
+      </div>
+      <div class="mb-4">
+        <label class="form-label small fw-semibold">Symptoms / Reason</label>
+        <textarea class="form-control bg-light" rows="2" [(ngModel)]="newAppointment.symptoms" name="symptoms"></textarea>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary" (click)="showBookModal = false">Cancel</button>
+        <button type="submit" class="btn btn-primary">Confirm Booking</button>
+      </div>
+    </form>
+  </div>
+</div>
