@@ -31,18 +31,19 @@ A full-stack MEAN (MongoDB, Express.js, Angular, Node.js) healthcare web portal 
 
 ### ⚙️ Getting Started
 
-#### 1. Backend Setup
+ #### 1. Backend Setup
 ```bash
-cd backend
-npm install
-npm run dev
-
+ cd backend
+ npm install
+ npm run dev
+ ```
+ 
  #### 2. Frontend Setup
  ```bash
  cd frontend
  npm install
  ng serve
- ```
+  ```
  
  #### 3. Access Portal
  Open `http://localhost:4200` in your web browser.
